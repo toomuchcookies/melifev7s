@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -27,6 +28,20 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
+struct Config {
+	float Max_RSpeed;
+	float Max_LSpeed;
+	float Acc;
+	float Tar_RSpeed;
+	float Tar_LSpeed;
+} myconfig;
+
+int sgn(double x) {
+  if (x > 0.0) return 1;
+  if (x < 0.0) return -1;
+  return 0;
+}
 
 /* USER CODE END PTD */
 
@@ -46,6 +61,20 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
+/* Definitions for defaultTask */
+osThreadId_t defaultTaskHandle;
+const osThreadAttr_t defaultTask_attributes = {
+  .name = "defaultTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for motionWD */
+osThreadId_t motionWDHandle;
+const osThreadAttr_t motionWD_attributes = {
+  .name = "motionWD",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal1,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -57,6 +86,9 @@ static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM4_Init(void);
+void StartDefaultTask(void *argument);
+void motion_wd(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -82,10 +114,11 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  int myadc;
-  int increment;
-  _Bool vacuum = 0;
-  _Bool butpressed = 0;
+  myconfig.Acc = 5;
+  myconfig.Max_LSpeed = 100;
+  myconfig.Max_RSpeed = 100;
+  myconfig.Tar_LSpeed = 0;
+  myconfig.Tar_RSpeed = 0;
 
   /* USER CODE END Init */
 
@@ -108,71 +141,53 @@ int main(void)
 
   /* USER CODE END 2 */
 
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of defaultTask */
+  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* creation of motionWD */
+  motionWDHandle = osThreadNew(motion_wd, NULL, &motionWD_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_RESET);
 
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2); // start the pwm
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // start the pwm
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3); // start the pwm
-
-  htim1.Instance->CCR2 = 0; // 50% duty cycle
-  htim3.Instance->CCR1 = 0;
-  htim3.Instance->CCR3 = 0;
 
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if (htim1.Instance->CCR2 > 95) increment = -1;
-	  if (htim1.Instance->CCR2 < 5) increment = 1;
-
-	  htim1.Instance->CCR2 += increment;
-	  myadc = HAL_ADC_GetValue(&hadc1);
-
-	  if (myadc < 100){
-		  if (!butpressed){
-			  vacuum = !vacuum;
-			  butpressed = 1;
-			  if (vacuum){
-				  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_SET);
-				  // HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_RESET);
-
-				  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
-				  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
-				  HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_SET);
-			  }else{
-				  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_RESET);
-				  // HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_SET);
-
-				  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-				  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-				  HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_RESET);
-			  }}
-	  }else{
-		  butpressed = 0;
-	  }
-
-	  if (HAL_GPIO_ReadPin(GPIOE_PE12_CONTACT_BUMPER_R_GPIO_Port, GPIOE_PE12_CONTACT_BUMPER_R_Pin)){
-		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_SET);
-		  htim3.Instance->CCR3 = 80;
-	  } else {
-		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_RESET);
-		  htim3.Instance->CCR3 = 0;
-	  }
-
-	  if (HAL_GPIO_ReadPin(GPIOB_PB05_CONTACT_BUMPER_L_GPIO_Port, GPIOB_PB05_CONTACT_BUMPER_L_Pin)){
-		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_RESET);
-		  htim3.Instance->CCR1 = 80;
-	  } else {
-		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_SET);
-		  htim3.Instance->CCR1 = 0;
-	  }
-
-	  HAL_Delay(10);
   }
   /* USER CODE END 3 */
 }
@@ -557,7 +572,159 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void setPW(TIM_HandleTypeDef timer, uint32_t channel, uint16_t period, uint16_t pulse)
+{
+	 HAL_TIM_PWM_Stop(&timer, channel); // stop generation of pwm
+	 TIM_OC_InitTypeDef sConfigOC;
+	 timer.Init.Period = period; // set the period duration
+	 HAL_TIM_PWM_Init(&timer); // reinititialise with new period value
+	 sConfigOC.OCMode = TIM_OCMODE_PWM1;
+	 sConfigOC.Pulse = pulse; // set the pulse duration
+	 sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+	 sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+	 HAL_TIM_PWM_ConfigChannel(&timer, &sConfigOC, channel);
+	 HAL_TIM_PWM_Start(&timer, channel); // start pwm generation
+}
+
+
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+	  int myadc;
+	  int increment;
+	  _Bool vacuum = 0;
+	  _Bool butpressed = 0;
+	  int green = 0;
+
+  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_RESET);
+
+  //HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2); // start the pwm
+  //HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // start the pwm
+  //HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3); // start the pwm
+
+  setPW(htim1, TIM_CHANNEL_2, 100, 0);
+  //htim1.Instance->CCR2 = 0; // 50% duty cycle
+  //htim3.Instance->CCR1 = 0;
+  setPW(htim3, TIM_CHANNEL_1, 100, 0);
+  //htim3.Instance->CCR3 = 0;
+  setPW(htim3, TIM_CHANNEL_3, 100, 0);
+  /* Infinite loop */
+  for(;;)
+  {
+	  if (green > 95) increment = -1;
+	  if (green < 5) increment = 1;
+
+	  green += increment;
+	  setPW(htim1, TIM_CHANNEL_2, 100, green);
+
+	  //htim1.Instance->CCR2 += increment;
+
+	  myadc = HAL_ADC_GetValue(&hadc1);
+
+	  if (myadc < 100){
+		  if (!butpressed){
+			  vacuum = !vacuum;
+			  butpressed = 1;
+			  if (vacuum){
+				  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_SET);
+				  // HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_RESET);
+
+				  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
+				  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
+				  HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_SET);
+			  }else{
+				  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_RESET);
+				  // HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_SET);
+
+				  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
+				  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
+				  HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_RESET);
+			  }}
+	  }else{
+		  butpressed = 0;
+	  }
+
+	  if (HAL_GPIO_ReadPin(GPIOE_PE12_CONTACT_BUMPER_R_GPIO_Port, GPIOE_PE12_CONTACT_BUMPER_R_Pin)){
+		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_SET);
+		  //htim3.Instance->CCR3 = 80;
+		  myconfig.Tar_LSpeed = 80;
+	  } else {
+		  // HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_RESET);
+		  //htim3.Instance->CCR3 = 0;
+		  myconfig.Tar_LSpeed = 0;
+	  }
+
+	  if (HAL_GPIO_ReadPin(GPIOB_PB05_CONTACT_BUMPER_L_GPIO_Port, GPIOB_PB05_CONTACT_BUMPER_L_Pin)){
+		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_RESET);
+		  //htim3.Instance->CCR1 = 80;
+		  myconfig.Tar_RSpeed = 80;
+	  } else {
+		  // HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_SET);
+		  myconfig.Tar_RSpeed = 0;
+	  }
+
+	  //HAL_Delay(10);
+
+	  osDelay(50);
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_motion_wd */
+/**
+* @brief Function implementing the motionWD thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_motion_wd */
+void motion_wd(void *argument)
+{
+  /* USER CODE BEGIN motion_wd */
+	float Ldiff;
+	float Rdiff;
+  /* Infinite loop */
+  for(;;)
+  {
+	  Ldiff = myconfig.Tar_LSpeed - htim3.Instance->CCR3;
+	  Rdiff = myconfig.Tar_RSpeed - htim3.Instance->CCR1;
+	  setPW(htim3, TIM_CHANNEL_3, 100, htim3.Instance->CCR3 + (int)(sgn(Ldiff)*myconfig.Acc));
+	  setPW(htim3, TIM_CHANNEL_1, 100, htim3.Instance->CCR1 + (int)(sgn(Rdiff)*myconfig.Acc));
+    osDelay(50);
+  }
+  /* USER CODE END motion_wd */
+}
+
+ /**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM2 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM2) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
