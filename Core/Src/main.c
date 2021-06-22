@@ -42,7 +42,9 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
 
@@ -53,6 +55,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM1_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -79,6 +83,7 @@ int main(void)
 
   /* USER CODE BEGIN Init */
   int myadc;
+  int increment;
   _Bool vacuum = 0;
   _Bool butpressed = 0;
 
@@ -95,6 +100,8 @@ int main(void)
   MX_GPIO_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
+  MX_TIM1_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start(&hadc1);
   HAL_GPIO_WritePin(GPIOE_PE05_SLEEP_GPIO_Port, GPIOE_PE05_SLEEP_Pin, GPIO_PIN_SET);
@@ -106,58 +113,40 @@ int main(void)
   HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_RESET);
+
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2); // start the pwm
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // start the pwm
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3); // start the pwm
+
+  htim1.Instance->CCR2 = 0; // 50% duty cycle
+  htim3.Instance->CCR1 = 0;
+  htim3.Instance->CCR3 = 0;
+
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  if (htim1.Instance->CCR2 > 95) increment = -1;
+	  if (htim1.Instance->CCR2 < 5) increment = 1;
+
+	  htim1.Instance->CCR2 += increment;
 	  myadc = HAL_ADC_GetValue(&hadc1);
 
-	  /*
-	  if (HAL_GPIO_ReadPin(GPIOE_PE03_MOT_L_GROUND_GPIO_Port, GPIOE_PE03_MOT_L_GROUND_Pin) & HAL_GPIO_ReadPin(GPIOD_PD10_MOT_R_GROUND_GPIO_Port, GPIOD_PD10_MOT_R_GROUND_Pin)){
-		  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_SET);
-	  }
-	  else {
-		  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_SET);
-		  HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_RESET);
-	  }*/
-
-	  /* if (HAL_GPIO_ReadPin(GPIOE_PE12_CONTACT_BUMPER_R_GPIO_Port, GPIOE_PE12_CONTACT_BUMPER_R_Pin)){
-		  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_SET);
-		  HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_RESET);
-	  }
-	  else {
-		  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_SET);
-	  } */
-
-	  /*if (HAL_GPIO_ReadPin(GPIOE_PE03_MOT_L_GROUND_GPIO_Port, GPIOE_PE03_MOT_L_GROUND_Pin)){
-	  }else{
-		  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
-	  }
-	  if (HAL_GPIO_ReadPin(GPIOD_PD10_MOT_R_GROUND_GPIO_Port, GPIOD_PD10_MOT_R_GROUND_Pin)){
-	  }else{
-		  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
-	  }*/
-
-	  //HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
-	  //HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_SET);
-	  //HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
 	  if (myadc < 100){
 		  if (!butpressed){
 			  vacuum = !vacuum;
 			  butpressed = 1;
 			  if (vacuum){
 				  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_SET);
-				  HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_RESET);
+				  // HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_RESET);
 
 				  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
 				  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
 				  HAL_GPIO_WritePin(GPIOB_PB14_TOURBINE_ENABLE_GPIO_Port, GPIOB_PB14_TOURBINE_ENABLE_Pin, GPIO_PIN_SET);
 			  }else{
 				  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_RESET);
-				  HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_SET);
+				  // HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_SET);
 
 				  HAL_GPIO_WritePin(GPIOA_PA08_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
 				  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
@@ -169,20 +158,18 @@ int main(void)
 
 	  if (HAL_GPIO_ReadPin(GPIOE_PE12_CONTACT_BUMPER_R_GPIO_Port, GPIOE_PE12_CONTACT_BUMPER_R_Pin)){
 		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_SET);
-		  HAL_GPIO_WritePin(GPIOC_PC08_MOT_L_ENABLE_GPIO_Port, GPIOC_PC08_MOT_L_ENABLE_Pin, GPIO_PIN_SET);
+		  htim3.Instance->CCR3 = 80;
 	  } else {
 		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOC_PC08_MOT_L_ENABLE_GPIO_Port, GPIOC_PC08_MOT_L_ENABLE_Pin, GPIO_PIN_RESET);
+		  htim3.Instance->CCR3 = 0;
 	  }
-	  //HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_SET);
-	  //TIM3->CCR1 = (myadc);
 
 	  if (HAL_GPIO_ReadPin(GPIOB_PB05_CONTACT_BUMPER_L_GPIO_Port, GPIOB_PB05_CONTACT_BUMPER_L_Pin)){
 		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOC_PC06_MOT_R_ENABLE_GPIO_Port, GPIOC_PC06_MOT_R_ENABLE_Pin, GPIO_PIN_SET);
+		  htim3.Instance->CCR1 = 80;
 	  } else {
 		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_SET);
-		  HAL_GPIO_WritePin(GPIOC_PC06_MOT_R_ENABLE_GPIO_Port, GPIOC_PC06_MOT_R_ENABLE_Pin, GPIO_PIN_RESET);
+		  htim3.Instance->CCR1 = 0;
 	  }
 
 	  HAL_Delay(10);
@@ -217,7 +204,7 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
@@ -278,6 +265,81 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM1_Init(void)
+{
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 8-1;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 100-1;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
+  HAL_TIM_MspPostInit(&htim1);
+
+}
+
+/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -297,9 +359,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = 8-1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
+  htim3.Init.Period = 100-1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -325,17 +387,63 @@ static void MX_TIM3_Init(void)
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN TIM3_Init 2 */
 
   /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
+
+}
+
+/**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 8;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 100;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
 
 }
 
@@ -356,7 +464,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIOE_PE05_SLEEP_Pin|GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin|GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, GPIOE_PE05_SLEEP_Pin|GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIOB_PB14_TOURBINE_ENABLE_Pin|GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_RESET);
@@ -365,7 +473,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIOC_PC06_MOT_R_ENABLE_Pin|GPIOC_PC08_MOT_L_ENABLE_Pin|GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin|GPIOA_PA11_BEEPER_Pin, GPIO_PIN_RESET);
@@ -378,8 +486,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : GPIOE_PE05_SLEEP_Pin GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin GPIOE_PE13_MOT_R_PHASE_Pin */
-  GPIO_InitStruct.Pin = GPIOE_PE05_SLEEP_Pin|GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin|GPIOE_PE13_MOT_R_PHASE_Pin;
+  /*Configure GPIO pins : GPIOE_PE05_SLEEP_Pin GPIOE_PE13_MOT_R_PHASE_Pin */
+  GPIO_InitStruct.Pin = GPIOE_PE05_SLEEP_Pin|GPIOE_PE13_MOT_R_PHASE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -419,12 +527,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : GPIOC_PC06_MOT_R_ENABLE_Pin GPIOC_PC08_MOT_L_ENABLE_Pin GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin */
-  GPIO_InitStruct.Pin = GPIOC_PC06_MOT_R_ENABLE_Pin|GPIOC_PC08_MOT_L_ENABLE_Pin|GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin;
+  /*Configure GPIO pin : GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin */
+  GPIO_InitStruct.Pin = GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin GPIOA_PA11_BEEPER_Pin */
   GPIO_InitStruct.Pin = GPIOA_PA08_SIDE_BRUSH_ENABLE_Pin|GPIOA_PA11_BEEPER_Pin;
