@@ -23,6 +23,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "ringbuffer.h"
+#include "string.h"
 
 /* USER CODE END Includes */
 
@@ -61,6 +63,9 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
+UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
+
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
@@ -76,16 +81,25 @@ const osThreadAttr_t motionWD_attributes = {
   .priority = (osPriority_t) osPriorityAboveNormal1,
 };
 /* USER CODE BEGIN PV */
+ringbuf_uint8t uart_rx_rb;
+#define uart_tmp_rx_buffer_size 128
+uint8_t uart_tmp_rx_buffer[uart_tmp_rx_buffer_size];
+#define uart_rx_buffer_size 128
+uint8_t uart_rx_buffer[uart_rx_buffer_size];
+#define command_buffer_size 128
+uint8_t command_buffer[command_buffer_size];
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void *argument);
 void motion_wd(void *argument);
 
@@ -95,6 +109,43 @@ void motion_wd(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+	if (huart->Instance == USART1)
+	{
+		for (int i=0;i<Size;i++)
+		{
+			if (uart_tmp_rx_buffer[i] == '\x0D')
+			{
+				int c=0;
+				while( !rb_isempty(&uart_rx_rb) )
+				{
+					uint8_t *tx_byte_ptr = rb_get(&uart_rx_rb);
+					command_buffer[c] = *tx_byte_ptr;
+					c++;
+				}
+				uint8_t test[4] = "Test";
+				if (strncmp(command_buffer, test, c) == 0)
+				{
+					HAL_GPIO_TogglePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin);
+				}
+				command_buffer[c] = '\r';
+				c++;
+				command_buffer[c] = '\n';
+				c++;
+				HAL_UART_Transmit(&huart1, command_buffer, c, 1000);
+			}
+			else
+			{
+				rb_put(&uart_rx_rb, uart_tmp_rx_buffer[i]);
+			}
+		}
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart_tmp_rx_buffer, uart_tmp_rx_buffer_size);
+		__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+	}
+
+}
 
 /* USER CODE END 0 */
 
@@ -131,11 +182,21 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
   MX_TIM1_Init();
   MX_TIM4_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  rb_init(&uart_rx_rb, uart_rx_buffer, uart_rx_buffer_size);
+
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart_tmp_rx_buffer, uart_tmp_rx_buffer_size);
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+
+  HAL_UART_Transmit(&huart1, "Started\x0A\x0D", 9, 1000);
+
   HAL_ADC_Start(&hadc1);
   HAL_GPIO_WritePin(GPIOE_PE05_SLEEP_GPIO_Port, GPIOE_PE05_SLEEP_Pin, GPIO_PIN_SET);
 
@@ -463,6 +524,55 @@ static void MX_TIM4_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -556,18 +666,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : GPIOA_PA09_USART1_TX_Pin */
-  GPIO_InitStruct.Pin = GPIOA_PA09_USART1_TX_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(GPIOA_PA09_USART1_TX_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : GPIOA_PA10_USART1_RX_Pin */
-  GPIO_InitStruct.Pin = GPIOA_PA10_USART1_RX_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA_PA10_USART1_RX_GPIO_Port, &GPIO_InitStruct);
-
 }
 
 /* USER CODE BEGIN 4 */
@@ -657,7 +755,7 @@ void StartDefaultTask(void *argument)
 
 	  if (HAL_GPIO_ReadPin(GPIOE_PE12_CONTACT_BUMPER_R_GPIO_Port, GPIOE_PE12_CONTACT_BUMPER_R_Pin)){
 		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_SET);
-		  myconfig.Tar_LSpeed = 100;
+		  myconfig.Tar_LSpeed = 80;
 	  } else {
 		  // HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_RESET);
 		  //htim3.Instance->CCR3 = 0;
@@ -666,7 +764,7 @@ void StartDefaultTask(void *argument)
 
 	  if (HAL_GPIO_ReadPin(GPIOB_PB05_CONTACT_BUMPER_L_GPIO_Port, GPIOB_PB05_CONTACT_BUMPER_L_Pin)){
 		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_RESET);
-		  myconfig.Tar_RSpeed = 100;
+		  myconfig.Tar_RSpeed = 80;
 	  } else {
 		  // HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_SET);
 		  myconfig.Tar_RSpeed = 0;
