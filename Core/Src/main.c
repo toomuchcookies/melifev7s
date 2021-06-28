@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "ringbuffer.h"
+#include <stdio.h>
 #include "string.h"
 
 /* USER CODE END Includes */
@@ -118,6 +119,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 		{
 			if (uart_tmp_rx_buffer[i] == '\x0D')
 			{
+				// delete command_buffer
+				command_buffer[0] = '\0';
 				int c=0;
 				while( !rb_isempty(&uart_rx_rb) )
 				{
@@ -125,16 +128,56 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 					command_buffer[c] = *tx_byte_ptr;
 					c++;
 				}
-				uint8_t test[4] = "Test";
-				if (strncmp(command_buffer, test, c) == 0)
+				char* test = "Test";
+				if (strcmp(command_buffer, test) == 0)
 				{
 					HAL_GPIO_TogglePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin);
 				}
+				/*
 				command_buffer[c] = '\r';
 				c++;
 				command_buffer[c] = '\n';
 				c++;
-				HAL_UART_Transmit(&huart1, command_buffer, c, 1000);
+				*/
+
+				char* cmd = strtok(command_buffer, " ");
+				char response[30] = "";
+
+				/*	float Max_RSpeed;
+				float Max_LSpeed;
+				float Acc;
+				float Tar_RSpeed;
+				float Tar_LSpeed;
+				*/
+				if (strcmp(cmd, "get")==0)
+				{
+					char* var = strtok(NULL, " ");
+					if (strcmp(var, "Max_LSpeed")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Max_LSpeed);
+					}
+					else if (strcmp(var, "Max_RSpeed")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Max_RSpeed);
+					}
+					else if (strcmp(var, "Acc")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Acc);
+					}
+					else if (strcmp(var, "Tar_RSpeed")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Tar_RSpeed);
+					}
+					else if (strcmp(var, "Tar_LSpeed")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Tar_LSpeed);
+					}
+					else
+					{
+						sprintf(response, "Variable not found!\r\n");
+					}
+					HAL_UART_Transmit(&huart1, response, sizeof(response), 1000);
+				}
 			}
 			else
 			{
