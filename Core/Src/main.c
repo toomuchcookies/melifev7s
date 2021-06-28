@@ -26,6 +26,7 @@
 #include "ringbuffer.h"
 #include <stdio.h>
 #include "string.h"
+#include <inttypes.h>
 
 /* USER CODE END Includes */
 
@@ -140,8 +141,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 				c++;
 				*/
 
-				char* cmd = strtok(command_buffer, " ");
-				char response[30] = "";
+				char *saveptr1;
+				char* cmd = strtok_r(command_buffer, " ",&saveptr1);
+				char response[50] = "";
 
 				/*	float Max_RSpeed;
 				float Max_LSpeed;
@@ -175,6 +177,46 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 					else
 					{
 						sprintf(response, "Variable not found!\r\n");
+					}
+					HAL_UART_Transmit(&huart1, response, sizeof(response), 1000);
+				}
+				else if (strcmp(cmd, "set")==0)
+				{
+					char* var = strtok_r(NULL, " ",&saveptr1);
+					char* endptr;
+					char* strval = strtok_r(NULL, "=", &saveptr1);
+					if (strval!=NULL)
+					{
+						HAL_UART_Transmit(&huart1, strval, sizeof(strval), 1000);
+					}
+					else
+					{
+						HAL_UART_Transmit(&huart1, "NULL", 4, 1000);
+					}
+					float val = (float) strtoimax(strval, &endptr, 10);
+					if (strcmp(var, "test")==0)
+					{
+						sprintf(response, "%d\r\n", (int) val);
+					}
+					else if (strcmp(var, "Max_RSpeed")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Max_RSpeed);
+					}
+					else if (strcmp(var, "Acc")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Acc);
+					}
+					else if (strcmp(var, "Tar_RSpeed")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Tar_RSpeed);
+					}
+					else if (strcmp(var, "Tar_LSpeed")==0)
+					{
+						sprintf(response, "%d\r\n", (int) myconfig.Tar_LSpeed);
+					}
+					else
+					{
+						sprintf(response, "Variable %s, %s, %s, %d not found!\r\n", cmd, var, strval, val);
 					}
 					HAL_UART_Transmit(&huart1, response, sizeof(response), 1000);
 				}
