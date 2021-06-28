@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include "string.h"
 #include <inttypes.h>
+#include "jsmn.h"
 
 /* USER CODE END Includes */
 
@@ -91,6 +92,18 @@ uint8_t uart_rx_buffer[uart_rx_buffer_size];
 #define command_buffer_size 128
 uint8_t command_buffer[command_buffer_size];
 
+jsmn_parser p;
+jsmntok_t t[50];
+
+
+static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
+  if (tok->type == JSMN_STRING && (int)strlen(s) == tok->end - tok->start &&
+      strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
+    return 0;
+  }
+  return -1;
+}
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -129,97 +142,29 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 					command_buffer[c] = *tx_byte_ptr;
 					c++;
 				}
-				char* test = "Test";
-				if (strcmp(command_buffer, test) == 0)
-				{
-					HAL_GPIO_TogglePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin);
-				}
-				/*
-				command_buffer[c] = '\r';
-				c++;
-				command_buffer[c] = '\n';
-				c++;
-				*/
+				jsmn_init(&p);
+				int r = jsmn_parse(&p, command_buffer, strlen(command_buffer), t, 20);
+				char ret[100];
+				sprintf(ret, "Number of tokens: %d \x0D\x0A", r);
+				HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
 
-				char *saveptr1;
-				char* cmd = strtok_r(command_buffer, " ",&saveptr1);
-				char response[50] = "";
-
-				/*	float Max_RSpeed;
-				float Max_LSpeed;
-				float Acc;
-				float Tar_RSpeed;
-				float Tar_LSpeed;
-				*/
-				if (strcmp(cmd, "get")==0)
-				{
-					char* var = strtok(NULL, " ");
-					if (strcmp(var, "Max_LSpeed")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Max_LSpeed);
+				for (int i = 1; i < r; i=i+2) {
+					if (jsoneq(command_buffer, &t[i], "command")==0){
+						sprintf(ret, "Command: %.*s (%d) \x0D\x0A", t[i+1].end - t[i+1].start, command_buffer + t[i+1].start, i);
+						HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
 					}
-					else if (strcmp(var, "Max_RSpeed")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Max_RSpeed);
-					}
-					else if (strcmp(var, "Acc")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Acc);
-					}
-					else if (strcmp(var, "Tar_RSpeed")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Tar_RSpeed);
-					}
-					else if (strcmp(var, "Tar_LSpeed")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Tar_LSpeed);
+					else if (jsoneq(command_buffer, &t[i], "var")==0){
+						sprintf(ret, "Var: %.*s (%d) \x0D\x0A", t[i+1].end - t[i+1].start, command_buffer + t[i+1].start, i);
+						HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
 					}
 					else
 					{
-						sprintf(response, "Variable not found!\r\n");
+						sprintf(ret, "None: %.*s : %.*s (%d) \x0D\x0A", t[i].end - t[i].start, command_buffer + t[i].start, t[i+1].end - t[i+1].start, command_buffer + t[i+1].start, i);
+						HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
 					}
-					HAL_UART_Transmit(&huart1, response, sizeof(response), 1000);
 				}
-				else if (strcmp(cmd, "set")==0)
-				{
-					char* var = strtok_r(NULL, " ",&saveptr1);
-					char* endptr;
-					char* strval = strtok_r(NULL, "=", &saveptr1);
-					if (strval!=NULL)
-					{
-						HAL_UART_Transmit(&huart1, strval, sizeof(strval), 1000);
-					}
-					else
-					{
-						HAL_UART_Transmit(&huart1, "NULL", 4, 1000);
-					}
-					float val = (float) strtoimax(strval, &endptr, 10);
-					if (strcmp(var, "test")==0)
-					{
-						sprintf(response, "%d\r\n", (int) val);
-					}
-					else if (strcmp(var, "Max_RSpeed")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Max_RSpeed);
-					}
-					else if (strcmp(var, "Acc")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Acc);
-					}
-					else if (strcmp(var, "Tar_RSpeed")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Tar_RSpeed);
-					}
-					else if (strcmp(var, "Tar_LSpeed")==0)
-					{
-						sprintf(response, "%d\r\n", (int) myconfig.Tar_LSpeed);
-					}
-					else
-					{
-						sprintf(response, "Variable %s, %s, %s, %d not found!\r\n", cmd, var, strval, val);
-					}
-					HAL_UART_Transmit(&huart1, response, sizeof(response), 1000);
-				}
+				sprintf(ret, "End\x0A\x0D");
+				HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
 			}
 			else
 			{
@@ -255,6 +200,7 @@ int main(void)
   myconfig.Max_RSpeed = 100;
   myconfig.Tar_LSpeed = 0;
   myconfig.Tar_RSpeed = 0;
+
 
   /* USER CODE END Init */
 
