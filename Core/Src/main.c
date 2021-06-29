@@ -40,6 +40,9 @@ struct Config {
 	int Acc;
 	int Tar_RSpeed;
 	int Tar_LSpeed;
+	int SideBrush;
+	int MainBrush;
+	int Turbine;
 } myconfig;
 
 int sgn(double x) {
@@ -140,6 +143,18 @@ int setter(char* vars[], char* vals[], int Size)
 		{
 			myconfig.Tar_LSpeed = (int) strtol(vals[t], (char **)NULL, 10);
 		}
+		else if (strcmp(vars[t], "MainBrush")==0)
+		{
+			myconfig.MainBrush = (int) strtol(vals[t], (char **)NULL, 10);
+		}
+		else if (strcmp(vars[t], "SideBrush")==0)
+		{
+			myconfig.SideBrush= (int) strtol(vals[t], (char **)NULL, 10);
+		}
+		else if (strcmp(vars[t], "Turbine")==0)
+		{
+			myconfig.Turbine = (int) strtol(vals[t], (char **)NULL, 10);
+		}
 		else
 		{
 			return -1;
@@ -171,6 +186,18 @@ void getter(char* vars[], char* vals[], int Size)
 		else if (strcmp(vars[t], "Tar_LSpeed")==0)
 		{
 			sprintf(vals[t], "%d", myconfig.Tar_LSpeed);
+		}
+		else if (strcmp(vars[t], "MainBrush")==0)
+		{
+			sprintf(vals[t], "%d", myconfig.MainBrush);
+		}
+		else if (strcmp(vars[t], "SideBrush")==0)
+		{
+			sprintf(vals[t], "%d", myconfig.SideBrush);
+		}
+		else if (strcmp(vars[t], "Turbine")==0)
+		{
+			sprintf(vals[t], "%d", myconfig.Turbine);
 		}
 		else
 		{
@@ -616,6 +643,10 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM3_Init 2 */
 
   /* USER CODE END TIM3_Init 2 */
@@ -743,9 +774,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIOA_PA08_TURBINE_ENABLE_Pin|GPIOA_PA11_BEEPER_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : GPIOE_PE03_MOT_L_GROUND_Pin GPIOE_PE04_BUG_RIGHT_MAGNET_Pin GPIOE_PE06_IR_RIGHT_Pin GPIOE_PE08_ENC_R_Pin
@@ -797,13 +825,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin */
-  GPIO_InitStruct.Pin = GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pins : GPIOA_PA08_TURBINE_ENABLE_Pin GPIOA_PA11_BEEPER_Pin */
   GPIO_InitStruct.Pin = GPIOA_PA08_TURBINE_ENABLE_Pin|GPIOA_PA11_BEEPER_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -848,20 +869,6 @@ void StartDefaultTask(void *argument)
 	  _Bool butpressed = 0;
 	  int green = 0;
 
-  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOB_PB14_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOB_PB14_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOA_PA08_TURBINE_ENABLE_GPIO_Port, GPIOA_PA08_TURBINE_ENABLE_Pin, GPIO_PIN_RESET);
-
-  //HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2); // start the pwm
-  //HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // start the pwm
-  //HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3); // start the pwm
-
-  setPW(htim1, TIM_CHANNEL_2, 100, 0);
-  //htim1.Instance->CCR2 = 0; // 50% duty cycle
-  //htim3.Instance->CCR1 = 0;
-  setPW(htim3, TIM_CHANNEL_1, 100, 0);
-  //htim3.Instance->CCR3 = 0;
-  setPW(htim3, TIM_CHANNEL_3, 100, 0);
   /* Infinite loop */
   for(;;)
   {
@@ -871,8 +878,6 @@ void StartDefaultTask(void *argument)
 	  green += increment;
 	  setPW(htim1, TIM_CHANNEL_2, 100, green);
 
-	  //htim1.Instance->CCR2 += increment;
-
 	  myadc = HAL_ADC_GetValue(&hadc1);
 
 	  if (myadc < 100){
@@ -881,44 +886,18 @@ void StartDefaultTask(void *argument)
 			  butpressed = 1;
 			  if (vacuum){
 				  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_SET);
-				  // HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_RESET);
-
-				  HAL_GPIO_WritePin(GPIOB_PB14_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOB_PB14_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
-				  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
-				  HAL_GPIO_WritePin(GPIOA_PA08_TURBINE_ENABLE_GPIO_Port, GPIOA_PA08_TURBINE_ENABLE_Pin, GPIO_PIN_SET);
+				  myconfig.SideBrush = 50;
+				  myconfig.MainBrush = 50;
+				  myconfig.Turbine = 50;
 			  }else{
 				  HAL_GPIO_WritePin(GPIOD_PD11_TOUCH_BUTTON_COLOR_1_GPIO_Port, GPIOD_PD11_TOUCH_BUTTON_COLOR_1_Pin, GPIO_PIN_RESET);
-				  // HAL_GPIO_WritePin(GPIOE_PE11_TOUCH_BUTTON_COLOR_2_GPIO_Port, GPIOE_PE11_TOUCH_BUTTON_COLOR_2_Pin, GPIO_PIN_SET);
-
-				  HAL_GPIO_WritePin(GPIOB_PB14_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOB_PB14_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-				  HAL_GPIO_WritePin(GPIOC_PC09_MAIN_BRUSH_ENABLE_GPIO_Port, GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
-				  HAL_GPIO_WritePin(GPIOA_PA08_TURBINE_ENABLE_GPIO_Port, GPIOA_PA08_TURBINE_ENABLE_Pin, GPIO_PIN_RESET);
+				  myconfig.SideBrush = 0;
+				  myconfig.MainBrush = 0;
+				  myconfig.Turbine = 0;
 			  }}
 	  }else{
 		  butpressed = 0;
 	  }
-
-	  /*
-	  if (HAL_GPIO_ReadPin(GPIOE_PE12_CONTACT_BUMPER_R_GPIO_Port, GPIOE_PE12_CONTACT_BUMPER_R_Pin)){
-		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_SET);
-		  myconfig.Tar_LSpeed = 80;
-	  } else {
-		  // HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_RESET);
-		  //htim3.Instance->CCR3 = 0;
-		  myconfig.Tar_LSpeed = 0;
-	  }
-
-	  if (HAL_GPIO_ReadPin(GPIOB_PB05_CONTACT_BUMPER_L_GPIO_Port, GPIOB_PB05_CONTACT_BUMPER_L_Pin)){
-		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_RESET);
-		  myconfig.Tar_RSpeed = 80;
-	  } else {
-		  // HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_SET);
-		  myconfig.Tar_RSpeed = 0;
-	  }
-	  */
-
-	  //HAL_Delay(10);
-
 	  osDelay(50);
   }
   /* USER CODE END 5 */
@@ -934,15 +913,30 @@ void StartDefaultTask(void *argument)
 void motion_wd(void *argument)
 {
   /* USER CODE BEGIN motion_wd */
-	float Ldiff;
-	float Rdiff;
   /* Infinite loop */
   for(;;)
   {
-	  /*Ldiff = myconfig.Tar_LSpeed - htim3.Instance->CCR3;
-	  Rdiff = myconfig.Tar_RSpeed - htim3.Instance->CCR1;
-	  setPW(htim3, TIM_CHANNEL_3, 100, htim3.Instance->CCR3 + (int)(sgn(Ldiff)*myconfig.Acc));
-	  setPW(htim3, TIM_CHANNEL_1, 100, htim3.Instance->CCR1 + (int)(sgn(Rdiff)*myconfig.Acc));*/
+	  // Main Brush
+	  setPW(htim3, TIM_CHANNEL_4, 100, abs((int)myconfig.MainBrush));
+	  // Side Brush
+	  if (myconfig.SideBrush > 0)
+	  {
+		  HAL_GPIO_WritePin(GPIOB_PB14_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOB_PB14_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_SET);
+	  }
+	  else
+	  {
+		  HAL_GPIO_WritePin(GPIOB_PB14_SIDE_BRUSH_ENABLE_GPIO_Port, GPIOB_PB14_SIDE_BRUSH_ENABLE_Pin, GPIO_PIN_RESET);
+	  }
+	  // Turbine
+	  if (myconfig.Turbine > 0)
+	  {
+		  HAL_GPIO_WritePin(GPIOA_PA08_TURBINE_ENABLE_GPIO_Port, GPIOA_PA08_TURBINE_ENABLE_Pin, GPIO_PIN_SET);
+	  }
+	  else
+	  {
+		  HAL_GPIO_WritePin(GPIOA_PA08_TURBINE_ENABLE_GPIO_Port, GPIOA_PA08_TURBINE_ENABLE_Pin, GPIO_PIN_RESET);
+	  }
+	  // Left motor
 	  setPW(htim3, TIM_CHANNEL_3, 100, abs((int)myconfig.Tar_LSpeed));
 	  if (myconfig.Tar_LSpeed < 0)
 	  {
@@ -952,6 +946,7 @@ void motion_wd(void *argument)
 	  {
 		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_SET);
 	  }
+	  // Right motor
 	  setPW(htim3, TIM_CHANNEL_1, 100, abs((int)myconfig.Tar_RSpeed));
 	  if (myconfig.Tar_RSpeed < 0)
 	  {

@@ -267,8 +267,9 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)
     /**TIM3 GPIO Configuration
     PC6     ------> TIM3_CH1
     PC8     ------> TIM3_CH3
+    PC9     ------> TIM3_CH4
     */
-    GPIO_InitStruct.Pin = GPIOC_PC06_MOT_R_ENABLE_Pin|GPIOC_PC08_MOT_L_ENABLE_Pin;
+    GPIO_InitStruct.Pin = GPIOC_PC06_MOT_R_ENABLE_Pin|GPIOC_PC08_MOT_L_ENABLE_Pin|GPIOC_PC09_MAIN_BRUSH_ENABLE_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
