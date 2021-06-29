@@ -35,11 +35,11 @@
 /* USER CODE BEGIN PTD */
 
 struct Config {
-	float Max_RSpeed;
-	float Max_LSpeed;
-	float Acc;
-	float Tar_RSpeed;
-	float Tar_LSpeed;
+	int Max_RSpeed;
+	int Max_LSpeed;
+	int Acc;
+	int Tar_RSpeed;
+	int Tar_LSpeed;
 } myconfig;
 
 int sgn(double x) {
@@ -116,6 +116,37 @@ void motion_wd(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void getter(char* vars[], char* vals[], int Size)
+{
+	for (size_t t=0; t<Size;t++)
+	{
+		if (strcmp(vars[t], "Max_RSpeed")==0)
+		{
+			sprintf(vals[t], "%d", myconfig.Max_RSpeed);
+		}
+		else if (strcmp(vars[t], "Max_LSpeed")==0)
+		{
+			sprintf(vals[t], "%d", myconfig.Max_LSpeed);
+		}
+		else if (strcmp(vars[t], "Acc")==0)
+		{
+			sprintf(vals[t], "%d", myconfig.Acc);
+		}
+		else if (strcmp(vars[t], "Tar_RSpeed")==0)
+		{
+			sprintf(vals[t], "%d", myconfig.Tar_RSpeed);
+		}
+		else if (strcmp(vars[t], "Tar_LSpeed")==0)
+		{
+			sprintf(vals[t], "%d", myconfig.Tar_LSpeed);
+		}
+		else
+		{
+			sprintf(vals[t], "%d", -555);
+		}
+	}
+}
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	if (huart->Instance == USART1)
@@ -133,48 +164,53 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 					command_buffer[c] = *tx_byte_ptr;
 					c++;
 				}
-				char response[50] = "";
 				JSON_Value *root_value;
 				JSON_Array *tokens;
 				JSON_Object *token;
 				root_value = json_parse_string(command_buffer);
 				tokens = json_object(root_value);
 
-				sprintf(response, "Number: %d \x0D\x0A\0", json_object_get_count(tokens));
-				HAL_UART_Transmit(&huart1, response, sizeof(response), 1000);
-
-
 				char* cmd = json_object_get_string(tokens, "command");
-				sprintf(response, "Interpreted: (%s) \x0D\x0A", cmd);
-				HAL_UART_Transmit(&huart1, response, strlen(response), 1000);
 				if (strcmp(cmd,"get")==0 || strcmp(cmd, "set")==0)
 				{
 					JSON_Value *jsonval = json_object_get_value(tokens, "var");
-
-					sprintf(response, "Type: %d \x0D\x0A", json_value_get_type(jsonval));
-					HAL_UART_Transmit(&huart1, response, strlen(response), 1000);
-
 					if (json_value_get_type(jsonval) == JSONString)
 					{
 						char vars[1][20];
+						char vals[1][20];
+						char* vals_ptr[1];
+						char* vars_ptr[1];
+						vals_ptr[0] = vals[0];
+						vars_ptr[0] = vars[0];
 						strcpy(vars[0], json_value_get_string(jsonval));
-						sprintf(response, "Interpreted: %s %s \x0D\x0A", cmd, json_value_get_string(jsonval));
-						HAL_UART_Transmit(&huart1, response, strlen(response), 1000);
+						getter(vars_ptr,vals_ptr,1);
+						char ret[50];
+						sprintf(ret, "%s: %s \x0D\x0A\0", vars[0], vals[0]);
+						HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
 					}
 					else if (json_value_get_type(jsonval) == JSONArray)
 					{
 						JSON_Array* arr = json_array(jsonval);
-						char vars[json_array_get_count(arr)][20];
-						for (size_t t=0; t<json_array_get_count(arr);t++)
+						int tot = json_array_get_count(arr);
+						char vars[tot][20];
+						char vals[tot][20];
+						char* vals_ptr[tot];
+						char* vars_ptr[tot];
+						for (size_t t=0; t<tot;t++)
 						{
 							strcpy(vars[t], json_array_get_string(arr,t));
-							sprintf(response, "%s \x0D\x0A", vars[t]);
-							HAL_UART_Transmit(&huart1, response, strlen(response), 1000);
+							vals_ptr[t] = vals[t];
+							vars_ptr[t] = vars[t];
+						}
+						getter(vars_ptr,vals_ptr,tot);
+						char ret[50];
+						for (size_t t=0; t<tot;t++)
+						{
+							sprintf(ret, "%s: %s \x0D\x0A\0", vars[t], vals[t]);
+							HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
 						}
 					}
 				}
-				sprintf(response, "End\x0D\x0A");
-				HAL_UART_Transmit(&huart1, response, strlen(response), 1000);
 			}
 			else
 			{
