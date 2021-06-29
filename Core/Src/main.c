@@ -116,6 +116,38 @@ void motion_wd(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+int setter(char* vars[], char* vals[], int Size)
+{
+	for (size_t t=0; t<Size;t++)
+	{
+		if (strcmp(vars[t], "Max_RSpeed")==0)
+		{
+			myconfig.Max_RSpeed = (int) strtol(vals[t], (char **)NULL, 10);
+		}
+		else if (strcmp(vars[t], "Max_LSpeed")==0)
+		{
+			myconfig.Max_LSpeed = (int) strtol(vals[t], (char **)NULL, 10);
+		}
+		else if (strcmp(vars[t], "Acc")==0)
+		{
+			myconfig.Acc = (int) strtol(vals[t], (char **)NULL, 10);
+		}
+		else if (strcmp(vars[t], "Tar_RSpeed")==0)
+		{
+			myconfig.Tar_RSpeed = (int) strtol(vals[t], (char **)NULL, 10);
+		}
+		else if (strcmp(vars[t], "Tar_LSpeed")==0)
+		{
+			myconfig.Tar_LSpeed = (int) strtol(vals[t], (char **)NULL, 10);
+		}
+		else
+		{
+			return -1;
+		}
+	}
+	return 0;
+}
+
 void getter(char* vars[], char* vals[], int Size)
 {
 	for (size_t t=0; t<Size;t++)
@@ -147,6 +179,17 @@ void getter(char* vars[], char* vals[], int Size)
 	}
 }
 
+void return_getter(char* vars[], char* vals[], int Size, char* ser)
+{
+	JSON_Value *root_value = json_value_init_object();
+	JSON_Object *root_object = json_value_get_object(root_value);
+	for (size_t t=0; t<Size; t++)
+	{
+		json_object_set_string(root_object, vars[t], vals[t]);
+	}
+	strcpy(ser, json_serialize_to_string(root_value));
+}
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	if (huart->Instance == USART1)
@@ -171,45 +214,69 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 				tokens = json_object(root_value);
 
 				char* cmd = json_object_get_string(tokens, "command");
+				int tot;
 				if (strcmp(cmd,"get")==0 || strcmp(cmd, "set")==0)
 				{
-					JSON_Value *jsonval = json_object_get_value(tokens, "var");
-					int tot;
-					if (json_value_get_type(jsonval) == JSONString)
+					JSON_Value* jsonvar = json_object_get_value(tokens, "var");
+					JSON_Value* jsonval;
+					if (strcmp(cmd, "set")==0)
+					{
+						jsonval = json_object_get_value(tokens, "val");
+					}
+					if (json_value_get_type(jsonvar) == JSONString)
 					{
 						tot=1;
 					}
-					else if (json_value_get_type(jsonval) == JSONArray)
+					else if (json_value_get_type(jsonvar) == JSONArray)
 					{
-						JSON_Array* arr = json_array(jsonval);
-						tot = json_array_get_count(arr);
+						tot = json_array_get_count(json_array(jsonvar));
 					}
 					char vars[tot][20];
 					char vals[tot][20];
 					char* vals_ptr[tot];
 					char* vars_ptr[tot];
-					if (json_value_get_type(jsonval) == JSONString)
+					if (json_value_get_type(jsonvar) == JSONString)
 					{
-						strcpy(vars[0], json_value_get_string(jsonval));
-						vals_ptr[0] = vals[0];
+						strcpy(vars[0], json_value_get_string(jsonvar));
 						vars_ptr[0] = vars[0];
+						if (strcmp(cmd, "set")==0)
+						{
+							strcpy(vals[0], json_value_get_string(jsonval));
+						}
+						vals_ptr[0] = vals[0];
 					}
-					else if (json_value_get_type(jsonval) == JSONArray)
+					else if (json_value_get_type(jsonvar) == JSONArray)
 					{
-						JSON_Array* arr = json_array(jsonval);
+						JSON_Array* vararr = json_array(jsonvar);
 						for (size_t t=0; t<tot;t++)
 						{
-							strcpy(vars[t], json_array_get_string(arr,t));
-							vals_ptr[t] = vals[t];
+							strcpy(vars[t], json_array_get_string(vararr,t));
 							vars_ptr[t] = vars[t];
+							if (strcmp(cmd, "set")==0)
+							{
+								strcpy(vals[t], json_array_get_string(json_array(jsonval),t));
+							}
+							vals_ptr[t] = vals[t];
 						}
 					}
-					getter(vars_ptr,vals_ptr,tot);
-					char ret[50];
-					for (size_t t=0; t<tot;t++)
+					if (strcmp(cmd,"get")==0)
 					{
-						sprintf(ret, "%s: %s \x0D\x0A\0", vars[t], vals[t]);
+						getter(vars_ptr,vals_ptr,tot);
+						char ret[255];
+						return_getter(vars_ptr, vals_ptr, tot, ret);
 						HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
+					}
+					else
+					{
+						int ret = setter(vars_ptr, vals_ptr, tot);
+						if (ret==0)
+						{
+							HAL_UART_Transmit(&huart1, "1\x0D", 3, 1000);
+						}
+						else
+						{
+							HAL_UART_Transmit(&huart1, "0\x0D", 3, 1000);
+						}
 					}
 				}
 			}
@@ -830,6 +897,7 @@ void StartDefaultTask(void *argument)
 		  butpressed = 0;
 	  }
 
+	  /*
 	  if (HAL_GPIO_ReadPin(GPIOE_PE12_CONTACT_BUMPER_R_GPIO_Port, GPIOE_PE12_CONTACT_BUMPER_R_Pin)){
 		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_SET);
 		  myconfig.Tar_LSpeed = 80;
@@ -846,6 +914,7 @@ void StartDefaultTask(void *argument)
 		  // HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_SET);
 		  myconfig.Tar_RSpeed = 0;
 	  }
+	  */
 
 	  //HAL_Delay(10);
 
@@ -869,10 +938,28 @@ void motion_wd(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  Ldiff = myconfig.Tar_LSpeed - htim3.Instance->CCR3;
+	  /*Ldiff = myconfig.Tar_LSpeed - htim3.Instance->CCR3;
 	  Rdiff = myconfig.Tar_RSpeed - htim3.Instance->CCR1;
 	  setPW(htim3, TIM_CHANNEL_3, 100, htim3.Instance->CCR3 + (int)(sgn(Ldiff)*myconfig.Acc));
-	  setPW(htim3, TIM_CHANNEL_1, 100, htim3.Instance->CCR1 + (int)(sgn(Rdiff)*myconfig.Acc));
+	  setPW(htim3, TIM_CHANNEL_1, 100, htim3.Instance->CCR1 + (int)(sgn(Rdiff)*myconfig.Acc));*/
+	  setPW(htim3, TIM_CHANNEL_3, 100, abs((int)myconfig.Tar_LSpeed));
+	  if (myconfig.Tar_LSpeed < 0)
+	  {
+		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_RESET);
+	  }
+	  else
+	  {
+		  HAL_GPIO_WritePin(GPIOB_PB07_MOT_L_PHASE_GPIO_Port, GPIOB_PB07_MOT_L_PHASE_Pin, GPIO_PIN_SET);
+	  }
+	  setPW(htim3, TIM_CHANNEL_1, 100, abs((int)myconfig.Tar_RSpeed));
+	  if (myconfig.Tar_RSpeed < 0)
+	  {
+		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_SET);
+	  }
+	  else
+	  {
+		  HAL_GPIO_WritePin(GPIOE_PE13_MOT_R_PHASE_GPIO_Port, GPIOE_PE13_MOT_R_PHASE_Pin, GPIO_PIN_RESET);
+	  }
     osDelay(50);
   }
   /* USER CODE END motion_wd */
