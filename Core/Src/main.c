@@ -174,41 +174,42 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 				if (strcmp(cmd,"get")==0 || strcmp(cmd, "set")==0)
 				{
 					JSON_Value *jsonval = json_object_get_value(tokens, "var");
+					int tot;
 					if (json_value_get_type(jsonval) == JSONString)
 					{
-						char vars[1][20];
-						char vals[1][20];
-						char* vals_ptr[1];
-						char* vars_ptr[1];
-						vals_ptr[0] = vals[0];
-						vars_ptr[0] = vars[0];
-						strcpy(vars[0], json_value_get_string(jsonval));
-						getter(vars_ptr,vals_ptr,1);
-						char ret[50];
-						sprintf(ret, "%s: %s \x0D\x0A\0", vars[0], vals[0]);
-						HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
+						tot=1;
 					}
 					else if (json_value_get_type(jsonval) == JSONArray)
 					{
 						JSON_Array* arr = json_array(jsonval);
-						int tot = json_array_get_count(arr);
-						char vars[tot][20];
-						char vals[tot][20];
-						char* vals_ptr[tot];
-						char* vars_ptr[tot];
+						tot = json_array_get_count(arr);
+					}
+					char vars[tot][20];
+					char vals[tot][20];
+					char* vals_ptr[tot];
+					char* vars_ptr[tot];
+					if (json_value_get_type(jsonval) == JSONString)
+					{
+						strcpy(vars[0], json_value_get_string(jsonval));
+						vals_ptr[0] = vals[0];
+						vars_ptr[0] = vars[0];
+					}
+					else if (json_value_get_type(jsonval) == JSONArray)
+					{
+						JSON_Array* arr = json_array(jsonval);
 						for (size_t t=0; t<tot;t++)
 						{
 							strcpy(vars[t], json_array_get_string(arr,t));
 							vals_ptr[t] = vals[t];
 							vars_ptr[t] = vars[t];
 						}
-						getter(vars_ptr,vals_ptr,tot);
-						char ret[50];
-						for (size_t t=0; t<tot;t++)
-						{
-							sprintf(ret, "%s: %s \x0D\x0A\0", vars[t], vals[t]);
-							HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
-						}
+					}
+					getter(vars_ptr,vals_ptr,tot);
+					char ret[50];
+					for (size_t t=0; t<tot;t++)
+					{
+						sprintf(ret, "%s: %s \x0D\x0A\0", vars[t], vals[t]);
+						HAL_UART_Transmit(&huart1, ret, strlen(ret), 1000);
 					}
 				}
 			}
